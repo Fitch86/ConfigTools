@@ -104,9 +104,18 @@ export function derUtcTime(date: Date): number[] {
   return wrap(0x17, [...Buffer.from(v, "ascii")]);
 }
 
-/** EXPLICIT context-specific [n] wrapper. */
+/** EXPLICIT context-specific [n] wrapper (constructed, 0xa0|n). */
 export function derContextTag(tagNumber: number, content: number[]): number[] {
   return wrap(0xa0 | tagNumber, content);
+}
+
+/** PRIMITIVE context-specific [n] wrapper (0x80|n), for IMPLICIT tags like
+ *  dNSName ([2] IMPLICIT IA5String) where the content is a primitive string. */
+export function derPrimitiveContextTag(
+  tagNumber: number,
+  content: number[]
+): number[] {
+  return wrap(0x80 | tagNumber, content);
 }
 
 function flatten(content: number[] | number[][]): number[] {
