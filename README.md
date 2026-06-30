@@ -20,6 +20,7 @@ configtools new my-server
 - **Three inbound protocols**: VLESS+Reality+Vision, VLESS+WS+TLS, VLESS+gRPC+TLS
 - **Auto-generated credentials**: UUID, X25519 Reality keypair, shortIds, ECDSA P-256 self-signed cert
 - **Routing presets**: `none` (all direct) or `block-ads-cn` (block ads + CN direct)
+- **Web UI**: Visual wizard + project manager, one-click copy credentials
 - **Validation**: JSON Schema + business rules (port ranges, UUID format, Reality key length, duplicate ports, etc.)
 - **Stable formatter**: sorted keys, idempotent (`format ∘ format === format`)
 - **Project model**: reloadable project dirs for edit → rebuild workflow
@@ -31,6 +32,7 @@ configtools new [name]              Create a new project interactively
 configtools edit <name>            Reload & re-prompt, rebuild
 configtools check <name> [file]    Validate server.json
 configtools format <name>          Reformat server.json in place
+configtools ui [port]              Launch Web UI (default: 3000)
 configtools list                    Show projects in output/
 configtools --help                 Show help
 configtools --version              Show version
@@ -39,7 +41,10 @@ configtools --version              Show version
 ## Quick Start
 
 ```bash
-# Create a new Xray config with Reality + WS + gRPC
+# Launch Web UI (recommended — visual wizard + project manager)
+configtools ui
+
+# Or use CLI interactively
 configtools new my-server
 
 # The tool will interactively ask:
