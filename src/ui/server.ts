@@ -111,7 +111,13 @@ app.get("/api/projects/:name/files/:path{.*}", (c) => {
 // ---------------------------------------------------------------------------
 
 app.post("/api/generate", async (c) => {
-  const body = await c.req.json();
+  let body: any;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
   const { name, logLevel, routingPreset, inbounds: inboundSpecs } = body as {
     name: string;
     logLevel: string;
@@ -146,9 +152,18 @@ app.post("/api/generate", async (c) => {
     if (typeof opts.multiMode === "string") {
       opts.multiMode = opts.multiMode === "true";
     }
+    // path: ensure string (form may send empty)
+    if (opts.path === undefined || opts.path === null) {
+      opts.path = "/ws";
+    }
+    // serviceName: ensure string
+    if (opts.serviceName === undefined || opts.serviceName === null) {
+      opts.serviceName = "grpc";
+    }
   }
 
-  // Build context
+  // Build context & assemble — wrap in try/catch so the server never crashes
+  try {
   const needsDomain = inboundSpecs.some(ib => ib.moduleId !== "reality");
   const domain = (inboundSpecs.find(ib => ib.options.domain)?.options?.domain as string) || "";
 
@@ -251,6 +266,9 @@ app.post("/api/generate", async (c) => {
       password: ctx.password,
     },
   });
+  } catch (e: any) {
+    return c.json({ error: e.message || "Internal generation error" }, 500);
+  }
 });
 
 // ---------------------------------------------------------------------------

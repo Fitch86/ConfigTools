@@ -49,13 +49,18 @@ export const vlessGrpcModule: InboundModule<VlessGrpcOptions> = {
   ],
 
   build(ctx: BuildContext, options: VlessGrpcOptions): InboundResult {
+    // Defensive defaults for fields that may be missing from UI
+    const port = options.port ?? 443;
+    const serviceName = options.serviceName ?? "grpc";
+    const domain = options.domain ?? "example.com";
+
     const grpcSettings: XrayGrpcSettings = {
-      serviceName: options.serviceName,
+      serviceName,
       ...(options.multiMode != null ? { multiMode: options.multiMode } : {}),
     };
 
     const tlsSettings: XrayTlsSettings = {
-      serverName: options.domain,
+      serverName: domain,
       certificates: [
         {
           certificateFile: "certs/cert.pem",
@@ -66,7 +71,7 @@ export const vlessGrpcModule: InboundModule<VlessGrpcOptions> = {
 
     const inbound: XrayInbound = {
       tag: "vless-grpc-tls",
-      port: options.port,
+      port,
       protocol: "vless",
       settings: {
         clients: [{ id: ctx.uuid }],
@@ -98,14 +103,14 @@ export const vlessGrpcModule: InboundModule<VlessGrpcOptions> = {
       files,
       clientNode: {
         protocol: "vless",
-        port: options.port,
+        port,
         network: "grpc",
         security: "tls",
         remarks: "VLESS-gRPC-TLS",
         extra: {
-          serviceName: options.serviceName,
+          serviceName,
           mode: options.multiMode ? "multi" : "gun",
-          sni: options.domain,
+          sni: domain,
           fingerprint: "chrome",
         },
       },

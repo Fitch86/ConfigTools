@@ -57,24 +57,29 @@ export const realityModule: InboundModule<RealityOptions> = {
 
   build(ctx: BuildContext, options: RealityOptions): InboundResult {
     const shortIds = options.shortIds ?? ctx.shortIds ?? [""];
-    const serverNames = options.serverNames;
+    const serverNames = options.serverNames ?? [];
+
+    // Defensive defaults for fields that may be missing from UI
+    const port = options.port ?? 443;
+    const dest = options.dest ?? "www.microsoft.com:443";
+    const xver = options.xver ?? 0;
 
     const realitySettings: XrayRealitySettings = {
-      dest: options.dest,
-      xver: options.xver,
+      dest,
+      xver,
       serverNames,
       privateKey: ctx.realityKeyPair?.privateKey ?? "",
       shortIds,
     };
 
     const rawSettings: XrayRawSettings = {};
-    if (options.xver > 0) {
+    if (xver > 0) {
       rawSettings.acceptProxyProtocol = true;
     }
 
     const inbound: XrayInbound = {
       tag: "vless-reality-vision",
-      port: options.port,
+      port,
       protocol: "vless",
       settings: {
         clients: [{ id: ctx.uuid, flow: "xtls-vision" }],
@@ -97,8 +102,8 @@ export const realityModule: InboundModule<RealityOptions> = {
       inbound,
       clientNode: {
         protocol: "vless",
-        port: options.port,
-        network: "raw",
+            port,
+            network: "raw",
         security: "reality",
         remarks: "VLESS-Reality-Vision",
         extra: {

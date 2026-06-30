@@ -44,13 +44,18 @@ export const vlessWsModule: InboundModule<VlessWsOptions> = {
   ],
 
   build(ctx: BuildContext, options: VlessWsOptions): InboundResult {
+    // Defensive defaults for fields that may be missing from UI
+    const port = options.port ?? 443;
+    const path = options.path ?? "/ws";
+    const domain = options.domain ?? "example.com";
+
     const wsSettings: XrayWsSettings = {
-      path: options.path,
+      path,
       ...(options.host ? { host: options.host } : {}),
     };
 
     const tlsSettings: XrayTlsSettings = {
-      serverName: options.domain,
+      serverName: domain,
       certificates: [
         {
           certificateFile: "certs/cert.pem",
@@ -61,7 +66,7 @@ export const vlessWsModule: InboundModule<VlessWsOptions> = {
 
     const inbound: XrayInbound = {
       tag: "vless-ws-tls",
-      port: options.port,
+      port,
       protocol: "vless",
       settings: {
         clients: [{ id: ctx.uuid }],
@@ -93,14 +98,14 @@ export const vlessWsModule: InboundModule<VlessWsOptions> = {
       files,
       clientNode: {
         protocol: "vless",
-        port: options.port,
+        port,
         network: "ws",
         security: "tls",
         remarks: "VLESS-WS-TLS",
         extra: {
-          path: options.path,
-          host: options.host || options.domain,
-          sni: options.domain,
+          path,
+          host: options.host || domain,
+          sni: domain,
           fingerprint: "chrome",
         },
       },
