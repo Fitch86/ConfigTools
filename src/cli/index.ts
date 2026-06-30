@@ -7,11 +7,13 @@
  *   edit <name>          — reload & re-prompt, rebuild
  *   check <name>         — validate server.json
  *   format <name>        — reformat server.json in place
+ *   ui [port]            — launch Web UI
  *   list                 — show projects in output/
  */
 
 import { resolve } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import kleur from "kleur";
 
 const VERSION = "0.1.0";
@@ -51,6 +53,9 @@ async function main(): Promise<void> {
       break;
     case "list":
       cmdList();
+      break;
+    case "ui":
+      await cmdUi(args[1]);
       break;
     case "version":
     case "-v":
@@ -252,6 +257,34 @@ async function cmdFormat(nameArg?: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// ui — Launch Web UI
+// ---------------------------------------------------------------------------
+
+async function cmdUi(portArg?: string): Promise<void> {
+  const port = parseInt(portArg || "3000", 10);
+  if (isNaN(port) || port < 1 || port > 65535) {
+    console.log(kleur.red("Invalid port. Usage: configtools ui [port]"));
+    process.exit(1);
+  }
+
+  const { startUiServer } = await import("../ui/server.js");
+  console.log(kleur.cyan("\n  ⚙️  configtools Web UI\n"));
+  startUiServer(port);
+
+  // Auto-open browser after a short delay
+  setTimeout(() => {
+    const url = `http://localhost:${port}/ui/`;
+    console.log(kleur.gray(`  Opening ${url} …`));
+    try {
+      const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
+      execSync(`${cmd} ${url}`, { stdio: "ignore" });
+    } catch {
+      console.log(kleur.yellow(`  Could not auto-open browser. Please visit: ${url}`));
+    }
+  }, 500);
+}
+
+// ---------------------------------------------------------------------------
 // list
 // ---------------------------------------------------------------------------
 
@@ -280,6 +313,7 @@ ${kleur.bold("Usage:")}
   configtools edit <name>            Reload & re-prompt, rebuild
   configtools check <name> [file]    Validate server.json
   configtools format <name>          Reformat server.json in place
+  configtools ui [port]              Launch Web UI (default: 3000)
   configtools list                    Show projects in output/
 
 ${kleur.bold("Options:")}
