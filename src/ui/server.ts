@@ -123,6 +123,31 @@ app.post("/api/generate", async (c) => {
     return c.json({ error: "name and inbounds are required" }, 400);
   }
 
+  // Pre-process inbound options: the wizard sends raw form values
+  // that need normalization before passing to module.build()
+  for (const spec of inboundSpecs) {
+    const opts = spec.options;
+    // serverNames: comma-separated string → string[]
+    if (typeof opts.serverNames === "string") {
+      opts.serverNames = (opts.serverNames as string)
+        .split(",")
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+    }
+    // xver: string → number
+    if (typeof opts.xver === "string") {
+      opts.xver = Number(opts.xver);
+    }
+    // port: string → number
+    if (typeof opts.port === "string") {
+      opts.port = Number(opts.port);
+    }
+    // multiMode: string → boolean
+    if (typeof opts.multiMode === "string") {
+      opts.multiMode = opts.multiMode === "true";
+    }
+  }
+
   // Build context
   const needsDomain = inboundSpecs.some(ib => ib.moduleId !== "reality");
   const domain = (inboundSpecs.find(ib => ib.options.domain)?.options?.domain as string) || "";
