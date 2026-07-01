@@ -34,11 +34,19 @@ function navigate(path) {
 // ---------------------------------------------------------------------------
 
 const API = {
-  get: (url) => fetch(url).then(r => r.json()),
+  request: async (url, opts) => {
+    const r = await fetch(url, opts);
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { error: text || ("HTTP " + r.status) }; }
+    return { ok: r.ok, status: r.status, data };
+  },
+  get: (url) => API.request(url),
   post: (url, body) =>
-    fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    API.request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
   put: (url, body) =>
-    fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    API.request(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  del: (url) => API.request(url, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------
@@ -59,7 +67,7 @@ function CopyBtn({ text }) {
 }
 
 function Badge({ type }) {
-  const cls = type === "reality" ? "badge-reality" : type === "vless-ws" ? "badge-ws" : "badge-grpc";
+  const cls = type === "reality" ? "badge-reality" : type === "vless-ws" ? "badge-ws" : type === "vless-grpc" ? "badge-grpc" : "badge-default";
   return html`<span class="badge ${cls}">${type}</span>`;
 }
 
@@ -71,9 +79,15 @@ function ProjectListPage() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [loadError, setLoadError] = useState("");
+
   const load = () => {
     setLoading(true);
-    API.get("/api/projects").then(data => { setProjects(data); setLoading(false); });
+    setLoadError("");
+    API.get("/api/projects").then(res => {
+      if (res.ok) { setProjects(res.data); setLoading(false); }
+      else { setLoadError(res.data.error || "Failed to load projects"); setLoading(false); }
+    }).catch(e => { setLoadError(e.message); setLoading(false); });
   };
 
   useEffect(load, []);
@@ -85,6 +99,7 @@ function ProjectListPage() {
         <button class="btn btn-primary" onclick=${() => navigate("/new")}>＋ New Project</button>
       </div>
       ${loading ? html`<p style="color:var(--text-muted)">Loading…</p>` :
+        loadError ? html`<div class="issue issue-error">⚠ ${loadError}</div>` :
         projects.length === 0 ?
           html`<div class="empty-state">
             <div class="emoji">🚀</div>
@@ -93,7 +108,7 @@ function ProjectListPage() {
           </div>` :
           html`<div class="card-grid">
             ${projects.map(p => html`
-              <div class="card" onclick=${() => navigate("/project/" + p.name)}>
+              <div class="card" onclick=${() => navigate("/project/" + encodeURIComponent(p.name))}>
                 <div class="card-title">${p.name}</div>
                 <div class="card-meta">${p.engine} · ${p.routingPreset || "none"}</div>
                 <div class="card-badges">
@@ -124,7 +139,7 @@ function NewProjectPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    API.get("/api/modules").then(setModules);
+    API.get("/api/modules").then(res => { if (res.ok) setModules(res.data); });
   }, []);
 
   const toggleModule = (id) => {
@@ -145,11 +160,12 @@ function NewProjectPage() {
         routingPreset,
         inbounds: getInboundSpecs(),
       });
-      if (res.error) {
-        setError(res.error + (res.issues ? ": " + res.issues.map(i => i.message).join("; ") : ""));
-      } else {
-        setResult(res);
+      if (res.ok) {
+        setResult(res.data);
         setStep(2);
+      } else {
+        const d = res.data;
+        setError(d.error + (d.issues ? ": " + d.issues.map(i => i.message).join("; ") : ""));
       }
     } catch (e) {
       setError(e.message);
@@ -293,7 +309,7 @@ function NewProjectPage() {
         ${error ? html`<div class="issue issue-error">⚠ ${error}</div>` : null}
 
         <div class="btn-group" style="margin-top:20px; justify-content:space-between;">
-          <button class="btn" onclick=${() => setStep(0)}>← Back</button>
+          <button class="btn" onclick=${() => { setStep(0); setError(""); }}>← Back</button>
           <button class="btn btn-primary" onclick=${handleGenerate}
                    disabled=${generating}>
             ${generating ? "Generating…" : "🚀 Generate Config"}
@@ -367,7 +383,7 @@ function NewProjectPage() {
       ` : null}
 
       <div class="btn-group" style="margin-top:24px;">
-        <button class="btn btn-primary" onclick=${() => navigate("/project/" + name)}>📂 View Project →</button>
+        <button class="btn btn-primary" onclick=${() => navigate("/project/" + encodeURIComponent(name))}>📂 View Project →</button>
         <button class="btn" onclick=${() => navigate("/")}>🏠 Home</button>
       </div>
     </div>
@@ -390,39 +406,76 @@ function ProjectDetailPage({ name }) {
 
   const load = () => {
     setLoading(true);
-    API.get("/api/projects/" + name).then(d => {
-      setData(d);
-      setEditJson(JSON.stringify(d.serverJson, null, 2));
-      setLoading(false);
-    });
+    API.get("/api/projects/" + encodeURIComponent(name)).then(res => {
+      if (res.ok) {
+        setData(res.data);
+        setEditJson(JSON.stringify(res.data.serverJson, null, 2));
+        setLoading(false);
+      } else {
+        setData(null);
+        setLoading(false);
+      }
+    }).catch(() => { setData(null); setLoading(false); });
   };
   useEffect(load, [name]);
 
   const handleCheck = async () => {
-    const res = await API.post("/api/projects/" + name + "/check");
-    setIssues(res.issues || []);
-    if (res.valid) setToast({ message: "✓ Config is valid!", type: "success" });
-    else setToast({ message: "✗ Validation failed", type: "error" });
+    try {
+      const res = await API.post("/api/projects/" + encodeURIComponent(name) + "/check");
+      if (res.ok) {
+        setIssues(res.data.issues || []);
+        if (res.data.valid) setToast({ message: "✓ Config is valid!", type: "success" });
+        else setToast({ message: "✗ Validation failed", type: "error" });
+      } else {
+        setToast({ message: "✗ " + (res.data.error || "Check failed"), type: "error" });
+      }
+    } catch (e) {
+      setToast({ message: "✗ " + e.message, type: "error" });
+    }
     setTimeout(() => setToast(null), 3000);
   };
 
   const handleFormat = async () => {
-    await API.post("/api/projects/" + name + "/format");
-    load();
-    setToast({ message: "✓ Formatted!", type: "success" });
+    try {
+      const res = await API.post("/api/projects/" + encodeURIComponent(name) + "/format");
+      if (res.ok) {
+        load();
+        setToast({ message: "✓ Formatted!", type: "success" });
+      } else {
+        setToast({ message: "✗ " + (res.data.error || "Format failed"), type: "error" });
+      }
+    } catch (e) {
+      setToast({ message: "✗ " + e.message, type: "error" });
+    }
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Delete project \"" + name + "\"? This cannot be undone.")) return;
+    try {
+      const res = await API.del("/api/projects/" + encodeURIComponent(name));
+      if (res.ok) {
+        navigate("/");
+      } else {
+        setToast({ message: "✗ " + (res.data.error || "Delete failed"), type: "error" });
+        setTimeout(() => setToast(null), 3000);
+      }
+    } catch (e) {
+      setToast({ message: "✗ " + e.message, type: "error" });
+      setTimeout(() => setToast(null), 3000);
+    }
   };
 
   const handleSave = async () => {
     try {
       const parsed = JSON.parse(editJson);
-      const res = await API.put("/api/projects/" + name + "/server.json", parsed);
-      if (res.error) {
-        setToast({ message: "✗ " + res.error, type: "error" });
-      } else {
+      const res = await API.put("/api/projects/" + encodeURIComponent(name) + "/server.json", parsed);
+      if (res.ok && res.data.success) {
         setEditing(false);
         load();
         setToast({ message: "✓ Saved!", type: "success" });
+      } else {
+        setToast({ message: "✗ " + (res.data.error || "Save failed"), type: "error" });
       }
     } catch (e) {
       setToast({ message: "✗ Invalid JSON: " + e.message, type: "error" });
@@ -437,7 +490,7 @@ function ProjectDetailPage({ name }) {
       try {
         const parsed = JSON.parse(value);
         const res = await API.post("/api/validate", parsed);
-        setIssues(res.issues || []);
+        setIssues(res.ok ? (res.data.issues || []) : [{ level: "error", path: "/", message: res.data.error || "Validation failed" }]);
       } catch {
         setIssues([{ level: "error", path: "/", message: "Invalid JSON syntax" }]);
       }
@@ -454,6 +507,7 @@ function ProjectDetailPage({ name }) {
         <div class="btn-group">
           <button class="btn btn-sm" onclick=${handleCheck}>🔍 Check</button>
           <button class="btn btn-sm" onclick=${handleFormat}>✨ Format</button>
+          <button class="btn btn-sm btn-danger" onclick=${handleDelete}>🗑️ Delete</button>
           <button class="btn btn-sm" onclick=${() => navigate("/")}>← Back</button>
         </div>
       </div>
@@ -559,7 +613,7 @@ function App() {
   } else if (route === "/new") {
     page = html`<${NewProjectPage} />`;
   } else if (route.startsWith("/project/")) {
-    const name = route.slice("/project/".length);
+    const name = decodeURIComponent(route.slice("/project/".length));
     page = html`<${ProjectDetailPage} name=${name} />`;
   } else {
     page = html`<div class="main"><p>404 — Page not found</p></div>`;

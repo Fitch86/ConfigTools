@@ -8,7 +8,7 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
-import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -98,8 +98,12 @@ app.get("/api/projects/:name", (c) => {
 app.get("/api/projects/:name/files/:path{.*}", (c) => {
   const name = c.req.param("name");
   const filePath = c.req.param("path");
-  const fullPath = join(projectDir(name), filePath);
+  const baseDir = resolve(projectDir(name));
+  const fullPath = resolve(baseDir, filePath);
 
+  if (!fullPath.startsWith(baseDir + "/") && fullPath !== baseDir) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
   if (!existsSync(fullPath)) {
     return c.json({ error: "File not found" }, 404);
   }
@@ -334,6 +338,26 @@ app.post("/api/projects/:name/format", (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// API: Delete project
+// ---------------------------------------------------------------------------
+
+app.delete("/api/projects/:name", (c) => {
+  const name = c.req.param("name");
+  const dir = resolve(projectDir(name));
+  const outputRoot = resolve("output");
+
+  // Ensure we only delete inside the output directory
+  if (!dir.startsWith(outputRoot + "/") && dir !== outputRoot) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  if (!existsSync(dir)) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+  rmSync(dir, { recursive: true, force: true });
+  return c.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
 // API: Validate arbitrary JSON (for editor live-check)
 // ---------------------------------------------------------------------------
 
@@ -348,6 +372,7 @@ app.post("/api/validate", async (c) => {
 // ---------------------------------------------------------------------------
 
 const FRONTEND_DIR = resolve(fileURLToPath(import.meta.url), "..", "frontend");
+const RESOLVED_FRONTEND_DIR = resolve(FRONTEND_DIR);
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -363,9 +388,12 @@ const MIME_TYPES: Record<string, string> = {
 app.get("/ui/*", (c) => {
   const url = new URL(c.req.url);
   let relPath = url.pathname.slice("/ui/".length) || "index.html";
-  const fullPath = join(FRONTEND_DIR, relPath);
+  const fullPath = resolve(FRONTEND_DIR, relPath);
 
-  if (!existsSync(fullPath) || fullPath.startsWith("..")) {
+  if (!fullPath.startsWith(RESOLVED_FRONTEND_DIR + "/") && fullPath !== RESOLVED_FRONTEND_DIR) {
+    return c.notFound();
+  }
+  if (!existsSync(fullPath)) {
     return c.notFound();
   }
 

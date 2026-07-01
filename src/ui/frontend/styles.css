@@ -102,6 +102,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .badge-reality { background: #1f3a5f; color: #58a6ff; }
 .badge-ws { background: #1a3a2a; color: #3fb950; }
 .badge-grpc { background: #3a1f5f; color: #bc8cff; }
+.badge-default { background: #2a2a2a; color: var(--text-muted); }
 
 /* Buttons */
 .btn {
@@ -125,6 +126,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   color: #fff;
 }
 .btn-primary:hover { background: #388bfd; border-color: #388bfd; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-danger { color: var(--red); }
 .btn-danger:hover { background: #3d1a1a; border-color: var(--red); }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
@@ -250,6 +252,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 }
 .toast-success { background: #1a3a2a; border: 1px solid var(--green); color: var(--green); }
 .toast-error { background: #3d1a1a; border: 1px solid var(--red); color: var(--red); }
+.toast-warning { background: #3d2e0a; border: 1px solid var(--yellow); color: var(--yellow); }
 @keyframes toast-in {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
